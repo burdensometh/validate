@@ -903,7 +903,7 @@ contains <- function(dat, keys, by){
   # to regex.
   given_keys   <- do.call(paste, keys)
   found_keys   <- do.call(paste, dat)
-  if (is.null(by)) by <- character(length(found_keys)) 
+  if (is.null(by)) by <- character(length(found_keys))
 
   unsplit(lapply(split(found_keys, f=by), function(fk){
     switch(keytype
@@ -913,6 +913,128 @@ contains <- function(dat, keys, by){
     )
   }), by)
 
+}
+
+
+#' Match records against reference data using a composite key
+#'
+#' Check, for each record, whether its key occurs in a table of reference
+#' data. The key may consist of one or more columns. This is useful to check
+#' foreign-key-like constraints: every (combination of) key value(s) in the
+#' data under scrutiny must match exactly one row in the reference data.
+#'
+#'
+#' @param keys A data frame, or a bare (unquoted) name of a data frame passed
+#'        as a reference to \code{confront} (see examples). The column names
+#'        of \code{keys} must also occur in the columns of the data under
+#'        scrutiny. Matching is exact; globbing and regular expressions are
+#'        not supported.
+#'
+#' @return A \code{logical} vector with one entry for each record in the data
+#' under scrutiny:
+#' \tabular{ll}{
+#'   \code{TRUE}  \tab the record's key combination matches exactly one row
+#'     in \code{keys}.\cr
+#'   \code{FALSE} \tab no row in \code{keys} matches the record's key
+#'     combination (\emph{no reference}), or multiple rows match
+#'     (\emph{duplicate match}).\cr
+#'   \code{NA}    \tab the record's key is incomplete: at least one of the key
+#'     columns is missing (\emph{source key missing}).\cr
+#' }
+#'
+#' @section Prerequisite: complete and unique reference keys
+#'
+#' The reference (\emph{parent}) table is expected to contain each key
+#' combination exactly once. This prerequisite is checked once, before
+#' matching:
+#' \itemize{
+#'   \item Reference rows with an incomplete key cannot be matched reliably.
+#'         They are ignored for matching and reported with a warning.
+#'   \item Key combinations that occur more than once make matching ambiguous.
+#'         They are reported with a warning, and records matching such a
+#'         combination are labeled \code{FALSE} (duplicate match).
+#' }
+#' Since these checks are performed once per call, duplicate or incomplete
+#' reference rows never multiply the number of results: every record under
+#' scrutiny yields exactly one result.
+#'
+#' @family key-checkers
+#'
+#' @examples
+#' ## Order reconciliation: every order must match exactly one row of the
+#' ## account plan on the composite key (country, currency, subject).
+#' orders <- data.frame(
+#'     country  = c("NL", "NL", "DE", "DE",  NA, "FR")
+#'   , currency = c("EUR","EUR","EUR","USD","EUR","EUR")
+#'   , subject  = c("600","610","600","600","600","999")
+#' )
+#'
+#' accounts <- data.frame(
+#'     country  = c("NL", "NL", "DE", "DE", "DE")
+#'   , currency = c("EUR","EUR","EUR","EUR","EUR")
+#'   , subject  = c("600","610","600","600","700")
+#' )
+#'
+#' rule <- validator(match_keys(account_plan))
+#' out <- confront(orders, rule, ref=list(account_plan = accounts))
+#' values(out)[,1]
+#' ## TRUE TRUE FALSE FALSE NA FALSE
+#' ## - "DE EUR 600" occurs twice in the reference: duplicate match (FALSE)
+#' ## - "DE USD 600" and "FR EUR 999" have no reference (FALSE)
+#' ## - the record with missing country has a missing source key (NA)
+#' warnings(out)  # the duplicate key combination is reported here
+#'
+#' ## a unique reference table gives a clean confrontation
+#' accounts <- accounts[-4,]  # drop the duplicated key combination
+#' out <- confront(orders, rule, ref=list(account_plan = accounts))
+#' values(out)[,1]
+#'
+#' ## interactive use
+#' with(orders, match_keys(accounts))
+#'
+#' @export
+match_keys <- function(keys){
+
+  if ( !is.data.frame(keys) ){
+    stop(sprintf("'keys' must be a data frame, not a %s", class(keys)[1])
+      , call.=FALSE)
+  }
+  if ( length(keys) == 0L ){
+    stop("'keys' must have at least one key column", call.=FALSE)
+  }
+
+  # fetch key columns from the data under scrutiny
+  L <- list()
+  for ( keyname in names(keys) ) L[[keyname]] <- dynGet(keyname)
+
+  ref_keys <- do.call(paste, keys)
+  src_keys <- do.call(paste, L)
+
+  # prerequisite: reference keys must be complete and unique
+  ref_complete <- stats::complete.cases(keys)
+  if ( any(!ref_complete) ){
+    warning(sprintf("match_keys: %d incomplete key row(s) in reference data ignored"
+      , sum(!ref_complete)), call.=FALSE)
+    ref_keys <- ref_keys[ref_complete]
+  }
+
+  i_dup <- duplicated(ref_keys) | duplicated(ref_keys, fromLast=TRUE)
+  if ( any(i_dup) ){
+    dup_keys <- unique(ref_keys[i_dup])
+    msg_keys <- paste(utils::head(dup_keys, 5), collapse=", ")
+    if ( length(dup_keys) > 5 ) msg_keys <- paste0(msg_keys, ", ...")
+    warning(sprintf("match_keys: reference key combinations not unique: %s (affects %d record(s))"
+      , msg_keys, sum(src_keys %in% dup_keys)), call.=FALSE)
+  }
+
+  # count, for each record, the number of matching reference rows
+  counts  <- table(ref_keys)
+  n_match <- as.integer(counts[src_keys])
+  n_match[is.na(n_match)] <- 0L
+
+  out <- n_match == 1L
+  out[Reduce(`|`, lapply(L, is.na))] <- NA
+  out
 }
 
 #' Check aggregates defined by a hierarchical code list

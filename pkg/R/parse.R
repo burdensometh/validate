@@ -372,12 +372,13 @@ validating_call <- function(cl){
           , "part_whole_relation","hierarchy"
           , "field_length", "number_format", "field_format"
           , "contains_exactly", "contains_at_least", "contains_at_most", "does_not_contain"
+          , "match_keys"
           , "in_range", "var_group")
   unary <- c("!", "(", "all", "any" )
   binary <- c("|","||","&","&&","if","xor")
 
-  variables_ok <- !is.null(var_from_call(cl)) ||   # validating call must have variables 
-        grepl("contain", deparse(cl[[1]]))         # or be one of the 'contains' functions
+  variables_ok <- !is.null(var_from_call(cl)) ||   # validating call must have variables
+        grepl("contain|match_keys", deparse(cl[[1]]))  # or take an in-place key set
 
   # push-button semantic changer. See issue #41
   assume_logical <- FALSE

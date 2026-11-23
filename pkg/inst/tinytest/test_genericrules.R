@@ -254,6 +254,63 @@ expect_equivalent(
  , rep(FALSE, 8))
 
 
+## Matching records against reference data with a composite key --------------
+
+# order reconciliation: orders must match the account plan on
+# (country, currency, subject)
+orders <- data.frame(
+    country  = c("NL","NL","DE","DE", NA ,"FR")
+  , currency = c("EUR","EUR","EUR","USD","EUR","EUR")
+  , subject  = c("600","610","600","600","600","999")
+)
+
+# reference with a duplicate key combination: (DE, EUR, 600)
+accounts <- data.frame(
+    country  = c("NL","NL","DE","DE","DE")
+  , currency = c("EUR","EUR","EUR","EUR","EUR")
+  , subject  = c("600","610","600","600","700")
+)
+
+rule <- validator(match_keys(account_plan))
+
+# per record: unique match (TRUE), no reference (FALSE),
+# duplicate match (FALSE), missing source key (NA)
+cf <- confront(orders, rule, ref=list(account_plan=accounts))
+expect_equivalent(as.logical(values(cf)), c(TRUE,TRUE,FALSE,FALSE,NA,FALSE)
+  , info="match_keys distinguishes unique match/no reference/duplicate/missing key")
+# duplicate reference keys are reported once, not per record
+expect_equal(length(warnings(cf)), 1)
+expect_true(grepl("not unique", warnings(cf)[[1]]))
+# duplicate reference rows do not multiply the number of results
+expect_equal(nrow(values(cf)), nrow(orders))
+
+# unique reference table: no warning, unambiguous matches
+accounts_u <- accounts[-4,]
+cf <- confront(orders, rule, ref=list(account_plan=accounts_u))
+expect_equivalent(as.logical(values(cf)), c(TRUE,TRUE,TRUE,FALSE,NA,FALSE))
+expect_equal(length(warnings(cf)), 0)
+
+# incomplete reference rows are ignored for matching and reported
+accounts_i <- rbind(accounts_u, data.frame(country="BE", currency=NA, subject="100"))
+cf <- confront(orders, rule, ref=list(account_plan=accounts_i))
+expect_equivalent(as.logical(values(cf)), c(TRUE,TRUE,TRUE,FALSE,NA,FALSE))
+expect_equal(length(warnings(cf)), 1)
+expect_true(grepl("incomplete", warnings(cf)[[1]]))
+
+# in-place key set
+rule <- validator(match_keys(expand.grid(country="NL", currency="EUR", subject=c("600","610"))))
+cf <- confront(orders, rule)
+expect_equivalent(as.logical(values(cf)), c(TRUE,TRUE,FALSE,FALSE,NA,FALSE)
+  , info="match_keys with in-place key set")
+
+# interactive use
+expect_equivalent(with(orders, match_keys(accounts_u)), c(TRUE,TRUE,TRUE,FALSE,NA,FALSE))
+
+# keys must be a data frame
+cf <- confront(orders, validator(match_keys(account_plan)), ref=list(account_plan=1:3))
+expect_true(grepl("data frame", errors(cf)[[1]]))
+
+
 ## Globbing and Regex ---------------------------------------------------------
 
 transactions <- data.frame(

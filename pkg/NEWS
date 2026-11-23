@@ -1,8 +1,12 @@
 version 1.1.8
-- Improved error message when non-valid 'raise' option is given 
+- Added 'match_keys()': match records against reference data using a
+  composite key. Distinguishes, per record, between no reference, missing
+  source key and duplicate match, and checks that reference keys are
+  complete and unique.
+- Improved error message when non-valid 'raise' option is given
   (thanks to Jan van der Laan for reporting)
-- Removed validate_options(), which has been deprecated for 
-  years. 
+- Removed validate_options(), which has been deprecated for
+  years.
 
 
 version 1.1.7
