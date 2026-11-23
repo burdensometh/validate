@@ -33,6 +33,8 @@ setRefClass("confrontation"
     , ._error = "list"       # list of 'error' objects
     , ._keys  = "list"       # list with at least 'keyset': an object containing the identifying variables in dat.
     , ._event = "character"  # Metadata identifying the confrontation event.
+    , ._original   = "list"       # verdicts before any exception was applied
+    , ._exceptions = "data.frame" # log of exceptions that were applied
   )
   , methods=list(
     show = function() .show_confrontation(.self)
@@ -228,6 +230,8 @@ confront_work <- function(x, dat, key=NULL, class='confrontation', ...){
       , ._warn  =  lapply(L,"[[",2)
       , ._error = lapply(L,"[[",3)
       , ._keys  = list(keyset = key)
+      , ._original = lapply(L,"[[",1)
+      , ._exceptions = empty_exception_report()
       , ._event = c(
              agent = sprintf("%s > %s %s.%s > validate %s"
                         , R.version[["platform"]]        
@@ -262,6 +266,8 @@ setMethod("[","confrontation",function(x,i,j,...,drop=TRUE){
     , ._warn = x$._warn[i]
     , ._error  = x$._error[i]
     , ._keys = x$._keys
+    , ._original = x$._original[i]
+    , ._exceptions = slice_exception_report(x$._exceptions, names(x$._value)[i])
   )
 })
 

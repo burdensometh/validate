@@ -3,6 +3,13 @@ version 1.1.8
   (thanks to Jan van der Laan for reporting)
 - Removed validate_options(), which has been deprecated for 
   years. 
+- New feature: temporary exceptions ('waivers'). The functions 'exceptions()'
+  and 'apply_exceptions()' allow a supplier-specific, time-bounded exemption
+  from a validation rule. The original verdict is retained, the effective
+  verdict and the basis of every waiver are reported ('original_values()',
+  'exception_report()'), and blocking resumes automatically once an approval
+  expires. Conflicting approvals are detected before any result is computed
+  ('check_exceptions()').
 
 
 version 1.1.7
