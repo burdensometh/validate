@@ -1,0 +1,8 @@
+"row_id","cert_no","holder","valid_from","valid_to","qty","failed_rules"
+5,"IJ-77889","Hooli",2026-05-01,2026-04-01,2,"validity_order"
+6,"KL-99001","Stark",2026-06-01,2027-06-01,0,"qty_positive"
+8,"OP-5566 7","Oscorp",2026-08-01,2027-08-01,4,"cert_no_format"
+9," QR-88990","Luthor",2026-09-01,2027-09-01,6,"cert_no_format"
+10,"TU-10112","",2026-10-01,2027-10-01,9,"holder_present"
+12,"ab-15161","SmallCo",2026-12-01,2027-12-01,12,"cert_no_format"
+13,"WX-17181","Acme Corp",2026-01-01,2027-01-01,NA,"qty_positive(NA)"

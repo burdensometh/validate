@@ -1,0 +1,24 @@
+# 证书数据校验规则
+# 规则是否允许自动修正，以 corrections.yml 登记表为准；此处只定义校验逻辑。
+rules:
+- expr: 'grepl("^[A-Z0-9-]+$", cert_no)'
+  name: cert_no_format
+  label: 证书编号格式
+  description: |
+    证书编号只能由大写字母、数字和连字符组成，
+    不得包含空格（含首尾空格）等其他字符。
+- expr: 'nchar(holder) > 0'
+  name: holder_present
+  label: 持有人非空
+  description: |
+    证书持有人名称不能为空。
+- expr: 'valid_from <= valid_to'
+  name: validity_order
+  label: 有效期起止顺序
+  description: |
+    有效期起始日期不得晚于截止日期。
+- expr: 'qty > 0'
+  name: qty_positive
+  label: 数量为正
+  description: |
+    数量必须为正数。

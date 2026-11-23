@@ -1,0 +1,5 @@
+"rule","label","scope","fix","rows_corrected","before_passes","before_fails","before_nNA","rerun","after_passes","after_fails","after_nNA"
+"cert_no_format","证书编号格式","registered-auto-fix","trim_trailing_ws",4,7,6,0,"yes",10,3,0
+"holder_present","持有人非空","report-only",NA,0,12,1,0,"no",NA,NA,NA
+"validity_order","有效期起止顺序","report-only",NA,0,12,1,0,"no",NA,NA,NA
+"qty_positive","数量为正","report-only",NA,0,11,1,1,"no",NA,NA,NA
