@@ -43,6 +43,7 @@ Collate:
     'genericrules.R'
     'lumberjack.R'
     'plot.R'
+    'provenance.R'
     'retailers.R'
     'run_validation.R'
     'sdmx.R'

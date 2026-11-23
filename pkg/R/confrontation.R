@@ -33,6 +33,7 @@ setRefClass("confrontation"
     , ._error = "list"       # list of 'error' objects
     , ._keys  = "list"       # list with at least 'keyset': an object containing the identifying variables in dat.
     , ._event = "character"  # Metadata identifying the confrontation event.
+    , ._provenance = "list"  # identity of rules, input and reference data (see provenance.R)
   )
   , methods=list(
     show = function() .show_confrontation(.self)
@@ -204,15 +205,17 @@ setGeneric('sort')
 
 # S4 METHODS ------------------------------------------------------------------
 
-## The below function is a worker that assumes all relevant data is present in 
+## The below function is a worker that assumes all relevant data is present in
 ## an environment, possibly with a parent containing reference data. Most, if not
 ## all R-based 'confront' methods will convert to this form and call the worker.
 ##
 ## x a validator object
 ## dat an environment
 ## key a character indicating a key.
+## input the data under scrutiny (as passed to confront) -- used for provenance.
+## ref   the reference data (as passed to confront), or NULL.
 ##
-confront_work <- function(x, dat, key=NULL, class='confrontation', ...){
+confront_work <- function(x, dat, key=NULL, class='confrontation', input=NULL, ref=NULL, ...){
   opts         <- x$clone_options(...)
   lin_eq_eps   <- opts('lin.eq.eps')
   lin_ineq_eps <- opts('lin.ineq.eps')
@@ -221,16 +224,19 @@ confront_work <- function(x, dat, key=NULL, class='confrontation', ...){
             , lin_ineq_eps=lin_ineq_eps
             , dat=dat)
   L <- execute(calls,dat,opts)
+  the_call <- match.call(definition=confront,call=sys.call(sys.parent(2)))
+  prov <- new_provenance(x, input=input, ref=ref, call_text=call2text(the_call))
   new(class,
-      ._call    = match.call(definition=confront,call=sys.call(sys.parent(2)))
+      ._call    = the_call
       , ._calls = calls
       , ._value = lapply(L,"[[",1)
       , ._warn  =  lapply(L,"[[",2)
       , ._error = lapply(L,"[[",3)
       , ._keys  = list(keyset = key)
+      , ._provenance = prov
       , ._event = c(
              agent = sprintf("%s > %s %s.%s > validate %s"
-                        , R.version[["platform"]]        
+                        , R.version[["platform"]]
                         , R.version[["language"]], R.version[["major"]], R.version[["minor"]]
                         , utils::packageVersion("validate") )
            , time    = format(Sys.time(),"%Y%m%dT%H%M%S%z")
@@ -262,6 +268,8 @@ setMethod("[","confrontation",function(x,i,j,...,drop=TRUE){
     , ._warn = x$._warn[i]
     , ._error  = x$._error[i]
     , ._keys = x$._keys
+    , ._event = x$._event
+    , ._provenance = x$._provenance
   )
 })
 
@@ -324,14 +332,14 @@ setRefClass("indication", contains = "confrontation")
 setMethod("confront", signature("data.frame","indicator"), function(dat, x, key=NULL,...){
   data_env <- list2env(dat)
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class = "indication",...)
+  confront_work(x, data_env, dat[key], class = "indication", input=dat,...)
 })
 
 #' @rdname confront
 setMethod("confront",signature("data.frame","indicator","environment"), function(dat, x, ref, key=NULL, ...){
   data_env <- namecheck(list2env(dat,parent=ref))
   data_env$. <- dat
-  confront_work(x,data_env, dat[key], class="indication",...)
+  confront_work(x,data_env, dat[key], class="indication", input=dat, ref=ref,...)
 })
 
 #' @rdname confront
@@ -340,7 +348,7 @@ setMethod("confront",signature("data.frame","indicator","data.frame"),function(d
   env$ref <- ref
   data_env <- namecheck(list2env(dat, parent=env))
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class="indication", ...)
+  confront_work(x, data_env, dat[key], class="indication", input=dat, ref=ref, ...)
 })
 
 #' @rdname confront
@@ -348,7 +356,7 @@ setMethod("confront",signature("data.frame","indicator","list"),function(dat, x,
   env <- list2env(ref)
   data_env <- namecheck(list2env(dat,parent=env))
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class="indication",...)
+  confront_work(x, data_env, dat[key], class="indication", input=dat, ref=ref,...)
 })
 
 
@@ -429,7 +437,7 @@ setMethod("show","validation",function(object){
 setMethod("confront", signature("data.frame","validator"), function(dat, x, key=NULL, ...){
   data_env <- list2env(dat)
   data_env$. <- dat
-  confront_work(x, data_env, dat[key],'validation',...)
+  confront_work(x, data_env, dat[key],'validation', input=dat,...)
 })
 
 
@@ -449,7 +457,7 @@ namecheck <- function(x){
 setMethod("confront",signature("data.frame","validator","environment"), function(dat, x, ref, key=NULL, ...){
   data_env <- namecheck(list2env(dat,parent=ref))
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class="validation",...)
+  confront_work(x, data_env, dat[key], class="validation", input=dat, ref=ref,...)
 })
 
 #' @rdname confront
@@ -458,7 +466,7 @@ setMethod("confront",signature("data.frame","validator","data.frame"),function(d
   env$ref <- ref
   data_env <- namecheck(list2env(dat, parent=env))
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class="validation", ...)
+  confront_work(x, data_env, dat[key], class="validation", input=dat, ref=ref, ...)
 })
 
 #' @rdname confront
@@ -466,7 +474,7 @@ setMethod("confront",signature("data.frame","validator","list"),function(dat, x,
   env <- list2env(ref)  
   data_env <- namecheck(list2env(dat,parent=env))
   data_env$. <- dat
-  confront_work(x, data_env, dat[key], class="validation",...)  
+  confront_work(x, data_env, dat[key], class="validation", input=dat, ref=ref,...)  
 })
 
 

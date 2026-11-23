@@ -1,8 +1,19 @@
 version 1.1.8
-- Improved error message when non-valid 'raise' option is given 
+- Improved error message when non-valid 'raise' option is given
   (thanks to Jan van der Laan for reporting)
-- Removed validate_options(), which has been deprecated for 
-  years. 
+- Removed validate_options(), which has been deprecated for
+  years.
+- Validation deliveries (run_validation_file, run_validation_dir) now
+  record provenance: the identity of the loaded rules (name, expression,
+  source file and line), a content fingerprint of the input data, the
+  reference data with its version (including code lists pulled in by
+  rules), and a fingerprint of the result summary. See ?provenance.
+  Reference data without a version is reported with its source.
+- New verify_provenance() checks a delivery against supplied rules, input
+  or reference data before use.
+- New replay_validation() re-runs a delivery only after the rule and
+  reference versions have been checked. It reports a comparison between
+  the delivered and re-run results.
 
 
 version 1.1.7
