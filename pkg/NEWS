@@ -1,8 +1,22 @@
+version 1.1.9
+- New 'revalidate()' (alias 'confront_incremental()') performs an incremental
+  re-confrontation of changed data. It determines which rules are affected by
+  changed data columns and reference objects -- including rules that use a
+  changed column only through transient variables (':=') or variable groups --
+  re-evaluates only those, and merges the still-valid results of a previous
+  confrontation by row key.
+- New 'affected_rules()' returns the rules that depend on a set of changed
+  fields.
+- New 'incremental_info()' reports which rules were recomputed, reused,
+  reordered or partially reused by the last 'revalidate()'.
+- 'confront()' now records the data and reference objects (by reference, at no
+  extra cost) so that a later 'revalidate()' can detect changes.
+
 version 1.1.8
-- Improved error message when non-valid 'raise' option is given 
+- Improved error message when non-valid 'raise' option is given
   (thanks to Jan van der Laan for reporting)
-- Removed validate_options(), which has been deprecated for 
-  years. 
+- Removed validate_options(), which has been deprecated for
+  years.
 
 
 version 1.1.7
