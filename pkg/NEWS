@@ -1,3 +1,13 @@
+version 1.1.8.9000
+- Added reconcile() and unit_spec(): reconcile indicator values from two
+  data sources that report in different units (e.g. yuan versus
+  thousand-yuan). Unit ratios and absolute/relative tolerances are
+  declared per indicator, records are matched on a business key, and
+  differences are computed after conversion to a common unit so that
+  legitimate rounding is not flagged as an anomaly. Results store the
+  values before and after conversion for review, and distinguish missing
+  unit declarations from genuine out-of-tolerance differences.
+
 version 1.1.8
 - Improved error message when non-valid 'raise' option is given 
   (thanks to Jan van der Laan for reporting)

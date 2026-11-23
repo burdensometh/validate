@@ -39,6 +39,7 @@ Collate:
     'validator.R'
     'confrontation.R'
     'compare.R'
+    'reconcile.R'
     'factory.R'
     'genericrules.R'
     'lumberjack.R'
