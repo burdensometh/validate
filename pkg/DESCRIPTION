@@ -45,6 +45,7 @@ Collate:
     'plot.R'
     'retailers.R'
     'run_validation.R'
+    'sharedkeys.R'
     'sdmx.R'
     'syntax.R'
     'utils.R'

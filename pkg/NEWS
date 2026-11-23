@@ -1,3 +1,12 @@
+version 1.1.9
+- New feature: shared composite-key checks for data that is validated in
+  separate shards (files). key_store(), register_keys(), shared_duplicates(),
+  in_shared_duplicates() and flag_shared_keys() detect key combinations that
+  are unique within each file but duplicated across files, and flag them in
+  the validation results of each file involved. Each key store is
+  independent, so different load batches do not interfere; re-registering a
+  shard replaces its keys so results can be regenerated after a fix.
+
 version 1.1.8
 - Improved error message when non-valid 'raise' option is given 
   (thanks to Jan van der Laan for reporting)
