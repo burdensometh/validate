@@ -1,3 +1,11 @@
+version 1.1.9
+- Added compare_validations() (and a compare() method for two
+  validation objects) to compare two confrontation results record by
+  record: outcomes are aligned on a business key and rule identity,
+  independently of the row order in the data. It reports per-record
+  status transitions and detects rules that were added, removed, or
+  modified under an existing name.
+
 version 1.1.8
 - Improved error message when non-valid 'raise' option is given 
   (thanks to Jan van der Laan for reporting)

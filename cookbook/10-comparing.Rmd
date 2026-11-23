@@ -162,6 +162,73 @@ barplot(comparison)
 plot(comparison)
 ```
 
+## Comparing two validation results, record by record
+
+The `compare()` function above compares **aggregated counts** for a single,
+fixed set of rules, and it assumes that the rows of the data sets are in the
+same order. When a new version of a rule set is deployed, the questions are
+often more specific:
+
+- which individual records moved from passing a rule to being blocked,
+- which rules were added or removed,
+- and which familiar rule names now point to a modified expression?
+
+These questions can be answered with `compare_validations()`. It takes two
+`validation` objects — the stored results of two `confront()` calls — and
+aligns them on a **business key** (one or more columns identifying a record)
+and on the **rule name**. Since alignment is by key value, the row order of
+the underlying data does not matter. The confrontations must be told which
+column identifies a record using the `key=` argument.
+
+```{r}
+dat_old <- data.frame(
+    id = c("a", "b", "c")
+  , turnover = c(100, -5, NA)
+  , staff = c(5, 1, 10)
+)
+dat_new <- data.frame(
+    id = c("c", "a", "b")     # rows in a different order
+  , turnover = c(NA, 100, 8)  # the negative turnover was repaired
+  , staff = c(10, 5, 1)
+)
+
+rules_old <- validator(turnover_nonneg = turnover >= 0
+                     , staff_nonneg    = staff >= 0)
+# the staff rule is tightened and a new rule is introduced
+rules_new <- validator(turnover_nonneg = turnover >= 0
+                     , staff_nonneg    = staff >= 1
+                     , staff_upper     = staff <= 8)
+
+old <- confront(dat_old, rules_old, key = "id")
+new <- confront(dat_new, rules_new, key = "id")
+
+cmp <- compare_validations(old, new)
+cmp
+```
+
+Each row combines one business key and one rule and reports the status on
+both sides (`pass`, `block`, `unverifiable`, `error`, or `absent`) and the
+resulting `transition`. Record `b`, for example, moved from `block` to
+`pass` after its turnover was repaired.
+
+```{r}
+subset(cmp, transition == "block_to_pass")
+```
+
+Rule-level changes are recognised automatically: `staff_nonneg` has the same
+name but a different expression, so it is labelled `rule_modified` (its
+results are not treated as a plain status transition), while `staff_upper`
+is `rule_added`. A rule present only in the old result would be labelled
+`rule_removed`.
+
+```{r}
+unique(cmp[, c("rule", "transition")])
+summary(cmp)
+```
+
+The same comparison is available through the `compare()` generic, as
+`compare(old, new)`.
+
 ## `validate` and `lumberjack`
 
 The [lumberjack](https://cran.r-project.org/package=lumberjack) package makes
