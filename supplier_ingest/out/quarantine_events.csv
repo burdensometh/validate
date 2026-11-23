@@ -1,0 +1,3 @@
+"run_at","id","event","failed_rules"
+"2026-11-23T18:32:38+0000","RET10","quarantined","fin_w1;fin_w2;fin_w3;fin_w4"
+"2026-11-23T18:32:38+0000","RET44","quarantined","fin_w4"

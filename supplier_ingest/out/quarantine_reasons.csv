@@ -1,0 +1,6 @@
+"id","rule","fields","reason"
+"RET10","fin_w1","turnover,other.rev,total.rev","连续字段缺失：turnover/other.rev/total.rev 全部为 NA"
+"RET10","fin_w2","other.rev,total.rev,staff.costs","连续字段缺失：other.rev/total.rev/staff.costs 全部为 NA"
+"RET10","fin_w3","total.rev,staff.costs,total.costs","连续字段缺失：total.rev/staff.costs/total.costs 全部为 NA"
+"RET10","fin_w4","staff.costs,total.costs,profit","连续字段缺失：staff.costs/total.costs/profit 全部为 NA"
+"RET44","fin_w4","staff.costs,total.costs,profit","连续字段缺失：staff.costs/total.costs/profit 全部为 NA"

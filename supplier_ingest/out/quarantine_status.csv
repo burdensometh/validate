@@ -1,0 +1,3 @@
+"id","status","n_failed_rules","failed_rules","reasons","updated_at"
+"RET10","open",4,"fin_w1;fin_w2;fin_w3;fin_w4","连续字段缺失：turnover/other.rev/total.rev 全部为 NA | 连续字段缺失：other.rev/total.rev/staff.costs 全部为 NA | 连续字段缺失：total.rev/staff.costs/total.costs 全部为 NA | 连续字段缺失：staff.costs/total.costs/profit 全部为 NA","2026-11-23T18:32:38+0000"
+"RET44","open",1,"fin_w4","连续字段缺失：staff.costs/total.costs/profit 全部为 NA","2026-11-23T18:32:38+0000"
