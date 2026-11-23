@@ -1,5 +1,10 @@
 version 1.1.8
-- Improved error message when non-valid 'raise' option is given 
+- Added partition_decision(): aggregate a validation over a partitioning
+  variable (e.g. region) and derive a per-partition release decision
+  ("release"/"reject"/"pending") from the failure ratio and a minimum
+  effective volume, with independent counts of passes, fails, missings
+  and rule errors.
+- Improved error message when non-valid 'raise' option is given
   (thanks to Jan van der Laan for reporting)
 - Removed validate_options(), which has been deprecated for 
   years. 

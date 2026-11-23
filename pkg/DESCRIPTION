@@ -38,6 +38,7 @@ Collate:
     'indicator.R'
     'validator.R'
     'confrontation.R'
+    'partition_decision.R'
     'compare.R'
     'factory.R'
     'genericrules.R'
