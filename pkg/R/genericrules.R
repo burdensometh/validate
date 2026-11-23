@@ -19,8 +19,22 @@
 #'        is sorted within each group before testing.
 #' @param begin Optionally, a value that should equal \code{min(x)}
 #' @param end   Optionally, a value that should equal \code{max(x)}
-#' @param by bare (unquoted) variable name or a list of unquoted variable names, 
+#' @param by bare (unquoted) variable name or a list of unquoted variable names,
 #'        used to split \code{x} into groups. The check is executed for each group.
+#' @param calendar Optionally, a reporting calendar. When given, the check is no
+#'        longer "every step is the same size" but "every working day within the
+#'        validity window is reported exactly once, and nothing else is reported".
+#'        \code{calendar} is either a vector of working days (\code{Date},
+#'        \code{POSIXct} or ISO-8601 \code{character}), or a \code{data.frame}
+#'        with a \code{date} column and a logical \code{working} column. With a
+#'        calendar, \code{x} is interpreted as dates even when it is
+#'        \code{character}, and \code{begin}/\code{end} (\code{valid_from}/\code{valid_until})
+#'        are day-based.
+#' @param valid_from,valid_until Optionally, the start and end of the period in
+#'        which reports are expected. Either a single value, or one value per
+#'        record; they must be constant within a group. When \code{NULL}, the
+#'        corresponding side is unbounded. Used only together with
+#'        \code{calendar}; \code{begin}/\code{end} are accepted as aliases.
 #' @param ... Arguments passed to other methods.
 #'
 #' @return For \code{is_linear_sequence}: a single \code{TRUE} or \code{FALSE},
@@ -60,6 +74,22 @@
 #'
 #' rule <- validator(in_linear_sequence(time, type))
 #' values( confront(dat, rule) )
+#'
+#' ## reporting calendar: reports on every working day, per store validity
+#' cal <- as.Date(c("2024-01-01","2024-01-02","2024-01-03","2024-01-04","2024-01-05",
+#'                  "2024-01-08","2024-01-09","2024-01-10"))
+#' stores <- rep(c("A","B"), c(5,3))
+#' dates  <- cal
+#' from   <- as.Date(rep(c("2024-01-01","2024-01-08"), c(5,3)))
+#' until  <- as.Date(rep(c("2024-01-05","2024-01-10"), c(5,3)))
+#' is_linear_sequence(dates, by=stores, calendar=cal
+#'                    , valid_from=from, valid_until=until) # TRUE
+#'
+#' ## inside a validator, the calendar is passed as reference data
+#' dat  <- data.frame(store=stores, date=dates)
+#' rule <- validator(in_linear_sequence(date, by=store, calendar=cal
+#'                    , valid_from=valid_from, valid_until=valid_until))
+#' confront(dat, rule, ref=list(cal=cal, valid_from=from, valid_until=until))
 #'
 #' @family cross-record-helpers
 #'
@@ -109,22 +139,33 @@ all_lin_num_seq <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e-
 #' @rdname is_linear_sequence
 #' @param tol numerical tolerance for gaps.
 #' @export
-is_linear_sequence.numeric <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol = 1e-8,...){
+is_linear_sequence.numeric <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol = 1e-8
+                                       , calendar=NULL,...){
+  if (!is.null(calendar))
+    stop("A reporting 'calendar' applies to date-like vectors, not to numeric 'x'.", call. = FALSE)
   all_lin_num_seq(x, by=by, begin=begin, end=end, sort=sort, tol=1e-8)
 }
 
 #' @rdname is_linear_sequence
 #' @export
-is_linear_sequence.Date <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE,...){
-  all_lin_num_seq(as.integer(x), by=by, begin=as_int(begin), end=as_int(end), sort=sort, tol=0)
+is_linear_sequence.Date <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE
+                                    , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
+  if (is.null(calendar))
+    return(all_lin_num_seq(as.integer(x), by=by, begin=as_int(begin), end=as_int(end), sort=sort, tol=0))
+  all_cal_seq(x, by=by, calendar=calendar, begin=begin, end=end
+              , valid_from=valid_from, valid_until=valid_until, sort=sort)
 }
 
 #' @rdname is_linear_sequence
 #' @export
-is_linear_sequence.POSIXct <- function(x, by=NULL , begin=NULL, end=NULL, sort = TRUE, tol=1e-6,...){
+is_linear_sequence.POSIXct <- function(x, by=NULL , begin=NULL, end=NULL, sort = TRUE, tol=1e-6
+                                       , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
   # Note. POSIXct can express fractions of a second. Conversion from and to POSIXlt
   # is better than microseconds, so that is what we use as default tolerance/
-  all_lin_num_seq(as.numeric(x), by=by, begin=as_num(begin), end=as_num(end), sort=sort, tol=tol)
+  if (is.null(calendar))
+    return(all_lin_num_seq(as.numeric(x), by=by, begin=as_num(begin), end=as_num(end), sort=sort, tol=tol))
+  all_cal_seq(x, by=by, calendar=calendar, begin=begin, end=end
+              , valid_from=valid_from, valid_until=valid_until, sort=sort)
 }
 
 #' @rdname is_linear_sequence
@@ -136,7 +177,16 @@ is_linear_sequence.POSIXct <- function(x, by=NULL , begin=NULL, end=NULL, sort =
 #' or year-Qquarter: \code{"2020-Q3"}. 
 #'
 #' @export
-is_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, format="auto",...){
+is_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, format="auto"
+                                         , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
+  if ( !is.null(calendar) ){
+    # A reporting calendar is day-based: interpret x (and bounds) as dates.
+    y     <- as_date(x)
+    begin <- as_date(begin)
+    end   <- as_date(end)
+    return(is_linear_sequence.Date(y, by=by, begin=begin, end=end, sort=sort
+      , calendar=calendar, valid_from=valid_from, valid_until=valid_until,...))
+  }
   if ( format == "auto" ){
     y     <- period_to_int(x, by=by)
     begin <- period_to_int(begin)
@@ -146,7 +196,8 @@ is_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=
     y     <- strptime(x, format=format)
     begin <- strptime(begin, format=format)
     end   <- strptime(end, format=format)
-    is_linear_sequence.POSIXct(y, by=by, begin=begin, end=end, sort=sort, tol=1e-6,...)
+    is_linear_sequence.POSIXct(y, by=by, begin=begin, end=end, sort=sort, tol=1e-6
+      , calendar=calendar, valid_from=valid_from, valid_until=valid_until, ...)
   }
 
 }
@@ -170,7 +221,16 @@ in_lin_num_seq <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e8,
 
 #' @rdname is_linear_sequence
 #' @export
-in_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, format="auto",...){
+in_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, format="auto"
+                                         , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
+  if ( !is.null(calendar) ){
+    # A reporting calendar is day-based: interpret x (and bounds) as dates.
+    y     <- as_date(x)
+    begin <- as_date(begin)
+    end   <- as_date(end)
+    return(in_linear_sequence.Date(y, by=by, begin=begin, end=end, sort=sort
+      , calendar=calendar, valid_from=valid_from, valid_until=valid_until,...))
+  }
   if ( format == "auto" ){
     y     <- period_to_int(x,by=by)
     begin <- period_to_int(begin)
@@ -180,7 +240,8 @@ in_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=
     y     <- strptime(x, format=format)
     begin <- strptime(begin, format=format)
     end   <- strptime(end, format=format)
-    in_linear_sequence.POSIXct(y, by=by, begin=begin, end=end, sort=sort, tol=1e-6,...)
+    in_linear_sequence.POSIXct(y, by=by, begin=begin, end=end, sort=sort, tol=1e-6
+      , calendar=calendar, valid_from=valid_from, valid_until=valid_until, ...)
   }
 
 }
@@ -188,8 +249,10 @@ in_linear_sequence.character <- function(x, by=NULL, begin=NULL, end=NULL, sort=
 
 #' @rdname is_linear_sequence
 #' @export
-in_linear_sequence.numeric <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e-8,...){
-  
+in_linear_sequence.numeric <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e-8
+                                       , calendar=NULL,...){
+  if (!is.null(calendar))
+    stop("A reporting 'calendar' applies to date-like vectors, not to numeric 'x'.", call. = FALSE)
   if (is.null(by)){
     in_lin_num_seq(as.integer(x), begin=as_int(begin), end=as_int(end), sort=sort, tol=tol)
   } else {
@@ -200,15 +263,23 @@ in_linear_sequence.numeric <- function(x, by=NULL, begin=NULL, end=NULL, sort=TR
 
 #' @rdname is_linear_sequence
 #' @export
-in_linear_sequence.Date <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE,...){
-  in_linear_sequence.numeric(as.integer(x), by=by, begin=as_int(begin), end=as_int(end), sort=TRUE, tol=0)
+in_linear_sequence.Date <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE
+                                    , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
+  if (is.null(calendar))
+    return(in_linear_sequence.numeric(as.integer(x), by=by, begin=as_int(begin), end=as_int(end), sort=TRUE, tol=0))
+  in_cal_seq(x, by=by, calendar=calendar, begin=begin, end=end
+             , valid_from=valid_from, valid_until=valid_until)
 }
 
 
 #' @rdname is_linear_sequence
 #' @export
-in_linear_sequence.POSIXct <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e-6,...){
-  in_linear_sequence.numeric(as.numeric(x), by=by, begin=as_num(begin), end=as_num(end), sort=sort, tol=0)
+in_linear_sequence.POSIXct <- function(x, by=NULL, begin=NULL, end=NULL, sort=TRUE, tol=1e-6
+                                       , calendar=NULL, valid_from=NULL, valid_until=NULL,...){
+  if (is.null(calendar))
+    return(in_linear_sequence.numeric(as.numeric(x), by=by, begin=as_num(begin), end=as_num(end), sort=sort, tol=0))
+  in_cal_seq(x, by=by, calendar=calendar, begin=begin, end=end
+             , valid_from=valid_from, valid_until=valid_until)
 }
 
 
@@ -266,6 +337,266 @@ period_to_int <- function(x, by=NULL){
   }
   if (is.null(by)) by <- character(length(x))
   unsplit(lapply(split(x, f=by), f), f=by)
+}
+
+
+# --- reporting calendar ------------------------------------------------------
+#
+# Support for time rules that must follow a given reporting calendar: reports
+# are expected on every working day within a validity window (per group, e.g.
+# per store) and must not be delivered on non-working days.
+
+# Coerce to Date, keeping NULL and rejecting uninterpretable input.
+as_date <- function(x){
+  if (is.null(x)) return(NULL)
+  if (inherits(x, "Date")) return(x)
+  if (inherits(x, "POSIXct") || inherits(x, "POSIXlt")) return(as.Date(x))
+  if (is.character(x)) return(as.Date(x))
+  stop("Cannot interpret a '", class(x)[1], "' object as a date.", call. = FALSE)
+}
+
+# Normalize a calendar specification to the sorted set of reportable (working)
+# dates.
+#
+# calendar is either a vector (Date, POSIXct, or ISO character) listing the
+# working days, or a data.frame with a 'date' column and a logical column named
+# 'working' (or 'is_working_day', 'report', 'working_day').
+calendar_dates <- function(calendar){
+  if (is.null(calendar))
+    stop("A reporting calendar is required.", call. = FALSE)
+  if (is.data.frame(calendar)){
+    nm <- names(calendar)
+    if (!"date" %in% nm)
+      stop("A calendar data.frame must contain a 'date' column.", call. = FALSE)
+    wcol <- intersect(nm, c("working", "is_working_day", "working_day", "report"))
+    if (length(wcol) == 0L)
+      stop("A calendar data.frame must contain a logical 'working' column.", call. = FALSE)
+    iswork <- calendar[[wcol[1]]]
+    if (!is.logical(iswork))
+      stop("The calendar working-day indicator must be logical.", call. = FALSE)
+    d <- as_date(calendar[["date"]])
+    d <- d[!is.na(iswork) & iswork & !is.na(d)]
+    return(sort(unique(d)))
+  }
+  d <- as_date(calendar)
+  sort(unique(d[!is.na(d)]))
+}
+
+# Split key that mirrors how 'split()' groups the input. Accepts NULL, a single
+# vector, or a (possibly named) list of vectors.
+group_key <- function(by, n){
+  if (is.null(by) || length(by) == 0L) return(rep(".", n))
+  if (inherits(by, "data.frame")) by <- as.list(by)
+  if (is.list(by)){
+    v <- lapply(by, as.character)
+    return(do.call(paste, c(v, sep = "\r")))
+  }
+  as.character(by)
+}
+
+# Resolve validity bounds to a Date vector of length n. Each bound may be NULL,
+# a single value, or one value per record; it must be constant within a group.
+resolve_bounds <- function(bounds, n, keys, what){
+  if (is.null(bounds)) return(rep(as.Date(NA), length(keys)))
+  b <- as_date(bounds)
+  if (length(b) == 1L && length(keys) != 1L) b <- rep(b, length(keys))
+  if (length(b) != length(keys))
+    stop(sprintf("'%s' must be a single value or one value per record.", what), call. = FALSE)
+  within_varies <- tapply(b, keys, function(d) length(unique(d[!is.na(d)])) > 1L)
+  if (any(within_varies))
+    stop(sprintf("'%s' varies within group '%s'; validity must be constant per group."
+                , what, names(within_varies)[which(within_varies)[1]]), call. = FALSE)
+  b
+}
+
+# Expected reportable dates for one group: working days within the validity window.
+expected_dates <- function(working, from, until){
+  out <- working
+  if (!is.na(from))  out <- out[out >= from]
+  if (!is.na(until)) out <- out[out <= until]
+  out
+}
+
+# Overall status of one group: TRUE when every expected working day is reported
+# exactly once and no report falls on a non-working day or outside the window.
+# Returns NA when the group contains a missing date.
+cal_group_ok <- function(d, working, from, until){
+  if (anyNA(d)) return(NA)
+  expected <- expected_dates(working, from, until)
+  # report outside validity window
+  if ((!is.na(from) && any(d < from)) || (!is.na(until) && any(d > until))) return(FALSE)
+  # report on a non-working day
+  if (any(!(d %in% working))) return(FALSE)
+  # duplicated report date
+  if (anyDuplicated(d)) return(FALSE)
+  # expected working day not reported
+  if (!all(expected %in% d)) return(FALSE)
+  TRUE
+}
+
+in_cal_seq <- function(x, by=NULL, calendar, begin=NULL, end=NULL
+                      , valid_from=NULL, valid_until=NULL, sort=TRUE){
+  w <- calendar_dates(calendar)
+  d <- as_date(x)
+  n <- length(d)
+  if (n == 0L) return(logical(0))
+  if (is.null(valid_from))  valid_from  <- begin
+  if (is.null(valid_until)) valid_until <- end
+  keys  <- group_key(by, n)
+  from  <- resolve_bounds(valid_from,  n, keys, "valid_from")
+  until <- resolve_bounds(valid_until, n, keys, "valid_until")
+  unsplit(lapply(split(seq_len(n), keys), function(i){
+    rep(cal_group_ok(d[i], w, from[i][1], until[i][1]), length(i))
+  }), keys)
+}
+
+all_cal_seq <- function(x, by=NULL, calendar, begin=NULL, end=NULL
+                       , valid_from=NULL, valid_until=NULL, sort=TRUE){
+  all(in_cal_seq(x, by=by, calendar=calendar, begin=begin, end=end
+                , valid_from=valid_from, valid_until=valid_until, sort=sort))
+}
+
+# Group columns as a data.frame with n rows (or NULL when there is no grouping).
+group_df <- function(by, n){
+  if (is.null(by) || length(by) == 0L) return(NULL)
+  if (inherits(by, "data.frame")){
+    d <- as.data.frame(by, stringsAsFactors = FALSE)
+  } else if (is.list(by)){
+    nm <- names(by)
+    if (is.null(nm) || any(!nzchar(nm))) nm <- paste0("by", seq_along(by))
+    d <- as.data.frame(setNames(lapply(by, as.character), nm), stringsAsFactors = FALSE)
+  } else {
+    d <- data.frame(by = as.character(by), stringsAsFactors = FALSE)
+  }
+  d
+}
+
+
+#' Diagnose reporting gaps against a reporting calendar
+#'
+#' Given a set of reporting dates, a reporting \code{calendar} and per-group
+#' validity windows, this function lists the dates that are expected but absent
+#' from the data, and classifies records that should not have been delivered.
+#'
+#' @param x \code{[Date]}, \code{[POSIXct]} or ISO-8601 \code{[character]}
+#'   vector of reporting dates, one per record.
+#' @param calendar Reporting calendar: a vector of working days (Date, POSIXct or
+#'   ISO-8601 character), or a \code{data.frame} with a \code{date} column and a
+#'   logical \code{working} column. Only working days are expected to be
+#'   reported.
+#' @param by Grouping variable(s), such as the store identifier. A vector or a
+#'   (named) list of vectors. Each group gets its own validity window and its
+#'   own set of expected dates.
+#' @param valid_from,valid_until Start and end of the validity window. Either a
+#'   single value applied to all records, or one value per record. They must be
+#'   constant within a group. When \code{NULL}, the window is unbounded on that
+#'   side.
+#' @param date Name of the output column holding the date.
+#' @param issue Name of the output column holding the issue classification.
+#'
+#' @return A \code{data.frame} with the grouping columns, the reporting
+#'   \code{date}, and an \code{issue} column. Every record falls in exactly one
+#'   class, with the following precedence:
+#'   \tabular{ll}{
+#'     \code{"non-working-day"} \tab A report delivered on a day that is not a
+#'       working day according to the calendar (checked first, so it also catches
+#'       such reports outside the validity window). \cr
+#'     \code{"outside-validity"} \tab A report on a working day, delivered outside
+#'       the group's validity window. \cr
+#'     \code{"duplicate"} \tab A working day inside the validity window that is
+#'       reported more than once. Every record of the duplicate is listed. \cr
+#'     \code{"missing"} \tab An expected working day that does not occur at all in
+#'       the data. The row is synthesized, so its date is present in the output
+#'       but absent from the input. \cr
+#'   }
+#'   Records that are reported exactly once, on a working day inside their
+#'   validity window, are not listed. The result is group-major, with the
+#'   reported problems ahead of synthesized \code{"missing"} rows within each
+#'   group; it is empty (zero rows) when there is nothing to report.
+#'
+#' @examples
+#' # two stores, each with its own start date
+#' stores <- c("A", "A", "A", "B", "B", "B", "B")
+#' dates <- as.Date(c(
+#'     "2024-01-01", "2024-01-02", "2024-01-03"   # store A: complete
+#'   , "2024-01-08", "2024-01-08", "2024-01-09", "2024-01-13" # B: duplicate + Sat.
+#' ))
+#' calendar <- as.Date(c("2024-01-01", "2024-01-02", "2024-01-03", "2024-01-04",
+#'                       "2024-01-05", "2024-01-08", "2024-01-09", "2024-01-10",
+#'                       "2024-01-11", "2024-01-12"))
+#' reporting_gaps(dates, calendar = calendar, by = stores
+#'   , valid_from = as.Date(c("2024-01-01", "2024-01-08"))[
+#'       match(stores, c("A", "B"))]
+#'   , valid_until = as.Date("2024-01-12"))
+#'
+#' @family cross-record-helpers
+#' @export
+reporting_gaps <- function(x, calendar, by = NULL, valid_from = NULL
+                           , valid_until = NULL
+                           , date = "date", issue = "issue"){
+  w  <- calendar_dates(calendar)
+  d  <- as_date(x)
+  n  <- length(d)
+  keys  <- group_key(by, n)
+  from  <- resolve_bounds(valid_from,  n, keys, "valid_from")
+  until <- resolve_bounds(valid_until, n, keys, "valid_until")
+  gdf   <- group_df(by, n)
+
+  # Accumulate atomic pieces per group, then assemble once. This avoids
+  # rbind() silently dropping the Date class.
+  acc <- lapply(split(seq_len(n), keys), function(i){
+    f <- from[i][1]; u <- until[i][1]
+    gpos <- i[1]
+    did  <- d[i]; did <- did[!is.na(did)]
+    # Classification, each record lands in exactly one bucket:
+    #  - a report on a day absent from the calendar is a non-working-day report,
+    #    whether or not it also lies outside the validity window;
+    #  - a working-day report outside the window is 'outside-validity';
+    #  - a working-day report inside the window, reported twice, is a duplicate.
+    nonwork <- did[!(did %in% w)]
+    work    <- did[did %in% w]
+    outside <- work[!((is.na(f) | work >= f) & (is.na(u) | work <= u))]
+    dup     <- work[(is.na(f) | work >= f) & (is.na(u) | work <= u)]
+    dup     <- dup[duplicated(dup) | duplicated(dup, fromLast = TRUE)]
+    expected <- expected_dates(w, f, u)
+    missing  <- expected[!(expected %in% unique(did))]
+    list(gpos = gpos
+        , date = c(nonwork, outside, dup, missing)
+        , issue = c(rep("non-working-day",  length(nonwork))
+                   , rep("outside-validity", length(outside))
+                   , rep("duplicate",        length(dup))
+                   , rep("missing",          length(missing))))
+  })
+
+  gpos  <- unlist(lapply(acc, `[[`, "gpos"))
+  dates <- unlist(lapply(acc, `[[`, "date"))
+  issues <- unlist(lapply(acc, `[[`, "issue"), use.names = FALSE)
+  if (length(dates) == 0L){
+    out <- if (is.null(gdf)) data.frame(row.names = integer(0))
+           else gdf[integer(0), , drop = FALSE]
+    out[[date]]  <- as.Date(character(0))
+    out[[issue]] <- character(0)
+    return(out)
+  }
+  dates <- as.Date(dates, origin = "1970-01-01")
+
+  # group identifier per emitted row: repeat the group's first-row values,
+  # and number the groups so the result keeps group-major order.
+  gn   <- sapply(acc, function(a) length(a$date))
+  gsrc <- rep(gpos, gn)
+  gord <- rep(seq_along(acc), gn)
+  out <- if (is.null(gdf)) data.frame(row.names = seq_along(dates))
+         else gdf[gsrc, , drop = FALSE]
+  rownames(out) <- NULL
+  out[[date]]  <- dates
+  out[[issue]] <- issues
+
+  # group-major; within a group reported problems before synthesized 'missing'
+  # rows; ties broken by date.
+  o <- order(gord, out[[issue]] == "missing", out[[date]])
+  out <- out[o, , drop = FALSE]
+  rownames(out) <- NULL
+  out
 }
 
 

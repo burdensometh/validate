@@ -1,8 +1,16 @@
 version 1.1.8
-- Improved error message when non-valid 'raise' option is given 
+- 'is_linear_sequence' and 'in_linear_sequence' accept a 'calendar' argument
+  describing working days, plus per-group 'valid_from'/'valid_until' validity
+  windows. With a calendar, the rules check that every working day within the
+  group's validity window is reported exactly once and that no report falls on a
+  non-working day. The existing per-group 'by' entry point is unchanged.
+- Added 'reporting_gaps', which materializes expected-but-absent report dates
+  and classifies duplicates, reports on non-working days, and reports outside
+  the validity window.
+- Improved error message when non-valid 'raise' option is given
   (thanks to Jan van der Laan for reporting)
-- Removed validate_options(), which has been deprecated for 
-  years. 
+- Removed validate_options(), which has been deprecated for
+  years.
 
 
 version 1.1.7
